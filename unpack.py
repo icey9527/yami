@@ -296,9 +296,9 @@ def extract_pak(pak_filepath: str, output_dir: str):
 
                     # Ensure output directory for this file exists (handles subdirectories in filenames)
                     output_filepath = os.path.join(output_dir, filename)
-                    os.makedirs(output_filepath, exist_ok=True)
-
+                    
                     if is_compressed:
+                        os.makedirs(output_filepath, exist_ok=True)
                         print(f"  已保存到 '{output_filepath}'")
 
                         tabel1 = tabel1_IdxQ * 4 * 4
