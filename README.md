@@ -56,3 +56,7 @@
 >name_edit.py -e scr 提取
 
 >name_edit.py -w scr 写入
+
+all.py 用于提取所有日文文本用于机翻啥的
+
+也是 -e -w
