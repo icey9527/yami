@@ -257,7 +257,7 @@ def pack():
 
 
 if __name__ == "__main__":
-    编码 = 'gbk'
+    编码 = 'cp936'
     work_dir = sys.argv[1]
     out_pack = sys.argv[2]
     pack()
