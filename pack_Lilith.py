@@ -11,28 +11,31 @@ def xor_encrypt(data: bytes, key_byte: int = 0xff) -> bytearray:
 
 def compress(data):
     window = bytearray(4096)
-    write_pos = 0xfee
-    bit_buffer = []
-    output = []
-    data_buffer = []
-    current = 0
+    write_pos = 0xfee  # 初始写入位置
+    bit_buffer = []    # 存储标志位（0表示匹配，1表示文字）
+    output = []        # 最终输出字节流
+    data_buffer = []   # 临时存储匹配对或文字
+    current = 0        # 当前处理的数据位置
 
     while current < len(data):
         best_offset, best_len = find_best_match(window, write_pos, data, current)
+        
         if best_len >= 3:
+            # 处理匹配情况
             bit_buffer.append(0)
             offset_low = best_offset & 0xff
             offset_high = (best_offset >> 8) & 0x0f
             length_code = (best_len - 3) & 0x0f
-            byte1 = offset_low
-            byte2 = (offset_high << 4) | length_code
-            data_buffer.append(byte1)
-            data_buffer.append(byte2)
+            data_buffer.append(offset_low)
+            data_buffer.append((offset_high << 4) | length_code)
+            
+            # 更新滑动窗口
             for i in range(best_len):
                 window[write_pos] = data[current + i]
                 write_pos = (write_pos + 1) % 4096
             current += best_len
         else:
+            # 处理文字情况
             bit_buffer.append(1)
             literal = data[current]
             data_buffer.append(literal)
@@ -40,26 +43,48 @@ def compress(data):
             write_pos = (write_pos + 1) % 4096
             current += 1
 
+        # 处理完整的控制字节块
         while len(bit_buffer) >= 8:
-            byte = 0
-            for i in range(8):
-                if i < len(bit_buffer) and bit_buffer[i]:
-                    byte |= (1 << i)
-            output.append(byte)
+            # 生成控制字节
+            control_bits = bit_buffer[:8]
+            control_byte = sum(bit << pos for pos, bit in enumerate(control_bits))
+            output.append(control_byte)
+            
+            # 提取对应的数据项
+            data_chunk = []
+            for bit in control_bits:
+                if bit:  # 文字项
+                    data_chunk.append(data_buffer.pop(0))
+                else:    # 匹配项
+                    data_chunk.append(data_buffer.pop(0))
+                    data_chunk.append(data_buffer.pop(0))
+            output.extend(data_chunk)
+            
+            # 移除已处理的标志位
             bit_buffer = bit_buffer[8:]
-            output.extend(data_buffer)
-            data_buffer.clear()
 
+    # 处理剩余位（关键改进部分）
     if bit_buffer:
-        while len(bit_buffer) < 8:
-            bit_buffer.append(0)
-        byte = 0
-        for i in range(8):
-            if bit_buffer[i]:
-                byte |= (1 << i)
-        output.append(byte)
-
-    output.extend(data_buffer)
+        original_bit_count = len(bit_buffer)
+        padding_needed = 8 - original_bit_count
+        
+        # 填充控制位
+        padded_bits = bit_buffer + [0] * padding_needed
+        control_byte = sum(bit << pos for pos, bit in enumerate(padded_bits))
+        output.append(control_byte)
+        
+        # 处理对应数据项（只处理原始有效位）
+        data_chunk = []
+        for i in range(original_bit_count):
+            if padded_bits[i]:
+                # 处理文字项（可能数据不足时填充0）
+                data_chunk.append(data_buffer.pop(0) if data_buffer else 0)
+            else:
+                # 处理匹配项（双重保护防止数据不足）
+                b1 = data_buffer.pop(0) if data_buffer else 0
+                b2 = data_buffer.pop(0) if data_buffer else 0
+                data_chunk.extend([b1, b2])
+        output.extend(data_chunk)
 
     return bytes(output)
 
@@ -88,7 +113,7 @@ def find_best_match(window, write_pos, data, current):
                 current_len += 1
             else:
                 break
-        if current_len > max_len and offset >=8:
+        if current_len > max_len:
             max_len = current_len
             best_start = start
             if max_len == max_possible_len:
@@ -108,7 +133,7 @@ def raed_bin(input, dir = '.'):
 
 def pack_block_compress(table1, table2, table3, opcode, str1, str2, 描述文本):
 
-    描述文本_ = 描述文本.encode(编码, errors='ignore')
+    描述文本_ = 描述文本.encode(编码)
     if len(描述文本_) > 0x2C:
         print(f'描述文本过长：{描述文本}')
         sys.exit()
@@ -146,7 +171,7 @@ def create_idx(item):
                 if delimiter not in split:
                     print(f'{item}——{split}：译文拆分失败！')
                     sys.exit()
-                text = split.split(delimiter, 1)[1]
+                text = split.split(delimiter, 1)[1].strip()
                 if text == '':
                     text = '　' #单空格情况实在是匹配不到，所以只能这样了
                     
@@ -192,7 +217,7 @@ def pack_block_construct(item):
             current_address += 8
 
         for key, addres in str_dict.items():
-            string_data = key.encode(编码, errors='ignore') + b'\x00'
+            string_data = key.encode(编码) + b'\x00'
             string_len = len(string_data)
             for addr in addres:
                 struct.pack_into('<I', table2_data, addr, len(str1_data))
@@ -201,7 +226,7 @@ def pack_block_construct(item):
 
     #    现在用的是优化逻辑，注释掉的是原本的构建逻辑
     #    for string in str_1_idx:
-    #        string_data = string.encode(编码, errors='ignore') + b'\x00'
+    #        string_data = string.encode(编码) + b'\x00'
     #        
     #        struct.pack_into('<I', table2_data, current_address, len(str1_data))
     #        struct.pack_into('<I', table2_data, current_address + 4, len(string_data))
@@ -229,7 +254,7 @@ def pack():
 
         item_block = pack_block_construct(item)
 
-        item_name = item.encode(编码, errors='ignore')
+        item_name = item.encode(编码)
         list[current_address : current_address + len(item_name)] = item_name
         struct.pack_into('<I', list, current_address + 0x40, len(data))
         struct.pack_into('<I', list, current_address + 0x44, len(item_block))
