@@ -9,6 +9,10 @@
 
 2025.12.3：什么？原来是标准lzss，算了，懒得维护了
 
+想批量提图片可以试试https://github.com/icey9527/Verviewer
+
+想逆向编辑图片和打包可以试试https://github.com/julixian/MyVisualNovelTransTools/tree/main/GsWin2ArchiveTool
+
 >pack.py scr scr.pak x
 
 （不压缩，最后一个参数随便输）
